@@ -24,7 +24,7 @@
     .directive('trLocation', trLocationDirective);
 
   /* @ngInject */
-  function trLocationDirective($compile, $timeout, LocationService) {
+  function trLocationDirective($log, $compile, $timeout, LocationService) {
     return {
       restrict: 'A',
       require: 'ngModel',
@@ -38,40 +38,46 @@
         trLocationBounds: '=?'
       },
       replace: false,
-      link: function (scope, element, attr, ngModel) {
+      compile: function compile() {
+        return {
+          // pre: function preLink(scope, element, attr, ngModel) { ... },
+          post: function postLink(scope, element, attr, ngModel) {
 
-        // Event handler to stop submitting the surrounding form
-        element.bind('keydown keypress', function($event) {
-          scope.trLocationNotfound = false;
+            // Event handler to stop submitting the surrounding form
+            element.bind('keydown keypress', function($event) {
+              scope.trLocationNotfound = false;
 
-          // On enter
-          if ($event.which === 13) {
-            // Signal to controller that enter was pressed
-            scope.skipSuggestions = true;
-            $event.preventDefault();
-          } else {
-            scope.skipSuggestions = false;
+              // On enter
+              if ($event.which === 13) {
+                // Signal to controller that enter was pressed
+                scope.skipSuggestions = true;
+                $event.preventDefault();
+              } else {
+                scope.skipSuggestions = false;
+              }
+            });
+
+            // Attach Angular UI Bootstrap TypeAhead
+            element.attr('typeahead-min-length', attr.typeaheadMinLength ? parseInt(attr.typeaheadMinLength, 10) : 3);
+            element.attr('typeahead-wait-ms', attr.typeaheadWaitMs ? parseInt(attr.typeaheadWaitMs, 10) : 300);
+            element.attr('typeahead-on-select', 'trLocation.onSelect($item, $model, $label, $event)');
+            element.attr('uib-typeahead', 'trTitle as address.trTitle for address in trLocation.searchSuggestions($viewValue)');
+
+            // Stop infinite rendering on `$compile` by removing directive's own definition attribute
+            element.removeAttr('tr-location');
+
+            // Compile this element again, this time with typeahead attributes,
+            // therefore creating a "new" typeahead input on DOM
+            $compile(element)(scope);
+
+            // Without this input value would be left empty due $compile
+            // @todo: any better way of handling this?
+            $timeout(function() {
+              ngModel.$setViewValue(scope.value);
+              ngModel.$render();
+            });
           }
-        });
-
-        // Attach Angular UI Bootstrap TypeAhead
-        element.prop('typeahead-min-length', attr.typeaheadMinLength ? parseInt(attr.typeaheadMinLength, 10) : 3);
-        element.prop('typeahead-wait-ms', attr.typeaheadWaitMs ? parseInt(attr.typeaheadWaitMs, 10) : 300);
-        element.prop('typeahead-on-select', 'trLocation.onSelect($item, $model, $label, $event)');
-        element.prop('uib-typeahead', 'trTitle as address.trTitle for address in trLocation.searchSuggestions($viewValue)');
-
-        // Stop infinite rendering on $compile
-        element.removeAttr('tr-location');
-
-        $compile(element)(scope);
-
-        // Without this input value would be left empty due $compile
-        // @todo: any better way of handling this?
-        $timeout(function() {
-          ngModel.$setViewValue(scope.value);
-          ngModel.$render();
-        });
-
+        };
       },
       controllerAs: 'trLocation',
       controller: function($scope, $timeout) {
@@ -133,7 +139,6 @@
          * Modify `trLocationCenter` or `trLocationBounds` objects
          */
         function locate(location) {
-
           // Set center bounds and center coordinates for (Angular-UI-Leaflet) model
           var bounds = LocationService.getBounds(location),
               center = LocationService.getCenter(location);
@@ -147,7 +152,6 @@
           } else if (angular.isFunction($scope.trLocationChange) && center) {
             $scope.trLocationChange(center, 'center');
           }
-
         }
 
       }
