@@ -11,8 +11,10 @@ var _ = require('lodash'),
     mongoose = require('mongoose'),
     userModels = require(path.resolve('./modules/users/server/models/user.server.model')),
     offerModels = require(path.resolve('./modules/offers/server/models/offer.server.model')),
+    messageModels = require(path.resolve('./modules/messages/server/models/message.server.model')),
     User = mongoose.model('User'),
     Offer = mongoose.model('Offer'),
+    Message = mongoose.model('Message'),
     cities = JSON.parse(fs.readFileSync(path.resolve('./scripts/fillTestDataCities.json'), 'utf8')),
     status = ['yes', 'maybe'],
     savedCounter = 0;
@@ -34,6 +36,25 @@ var randomizeLoaction = function () {
   }
   return parseFloat(random.toFixed(5));
 };
+
+var randomString = function (length) {
+  /* spaces to make the string look like a sentence */
+  var chars = '     abcdefghijklmnopqrstuvwxyz     ABCDEFGHIJKLMNOPQRSTUVWXYZ     ';
+  var result = '';
+  for (var i = length; i > 0; --i) {
+    result += chars[random(chars.length)];
+  }
+  if(!result.length) {
+    return 'String is empty, so it is the message';
+  }
+  return result;
+}
+
+var getRandomUserId = function(model, cb) {
+  model.find({}, function(err, elements) {
+    cb(err, elements[random(elements.length)]._id);
+  });
+}
 
 // Bootstrap db connection
 var db = mongoose.connect(config.db.uri, function(err) {
@@ -59,13 +80,17 @@ var addUsers = function (index, max) {
 
   user.save(function(err) {
     if (err != null) console.log(err);
-  });
-  index++;
-  addOffer(user._id, index, max);
+    getRandomUserId(User, function(err, userId){ 
+      if (err) console.log(err);
+      addMessage(user._id, userId);
+      index++;
+      addOffer(user._id, index, max);
 
-  if (index <= max) {
-    addUsers(index, max);
-  }
+      if (index <= max) {
+        addUsers(index, max);
+      }
+    });
+  });
 
 };
 
@@ -95,6 +120,20 @@ var addOffer = function (id, index, max) {
       }
     }
   });
+}
+
+var addMessage = function (from, to, index) {
+  if(from != to) {
+    var message = new Message();
+    
+    message.content = randomString(random(100));
+    message.userFrom = from;
+    message.userTo = to;
+
+    message.save(function(err) {
+      if (err != null) console.log(err);
+    });
+  }
 }
 
 // Create optional admin user
